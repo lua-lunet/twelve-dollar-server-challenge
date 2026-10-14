@@ -20,7 +20,7 @@ through that path; the k6 baseline (50 VUs) measured p99 under 1 ms with 0% erro
 ## Runtime
 
 lunet is not compiled from source. `build.sh` downloads the pinned release archive
-(`lunet-linux-amd64.tar.gz`, tag `v0.9.2`), verifies its sha256 digest against a hash embedded in the
+(`lunet-linux-amd64.tar.gz`, tag `v0.10.1`), verifies its sha256 digest against a hash embedded in the
 script, stages it into `.lunet/`, and smoke-tests the loader — the same way a Node submission
 installs Node. No xmake, no cargo. Nothing prebuilt is committed.
 

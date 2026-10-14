@@ -1,16 +1,16 @@
 #!/usr/bin/env bash
-# Fetches the pinned lunet v0.9.2 release archive and stages it into .lunet/.
+# Fetches the pinned lunet v0.10.1 release archive and stages it into .lunet/.
 # This is an install of a pinned official release, not a source build. Run as a
 # normal user; re-running is safe.
 set -euo pipefail
 
-LUNET_VERSION=v0.9.2
+LUNET_VERSION=v0.10.1
 BASE_URL="https://github.com/lua-lunet/lunet/releases/download/$LUNET_VERSION"
 
 case "$(uname -s)-$(uname -m)" in
-    Darwin-*)            ASSET=lunet-macos.tar.gz ;      DIGEST=f8b795d02e4c6860da84ba23d52db34007fe474e82be16789c6665d1dfa5e878 ;;
-    Linux-x86_64)        ASSET=lunet-linux-amd64.tar.gz; DIGEST=d242a272ac9940f976a7df9d021d5c8c5d956a8763a4047594e98eadc7bed31a ;;
-    Linux-aarch64)       ASSET=lunet-linux-arm64.tar.gz; DIGEST=087422bb091ef70ddf89d4cc1f069e6192a8159f035f363a8afd2f3dea940fc4 ;;
+    Darwin-*)            ASSET=lunet-macos.tar.gz ;      DIGEST=ee9882c38aa18fbf9ff46d339aa931356fe84103644a11bfe16de4285783782f ;;
+    Linux-x86_64)        ASSET=lunet-linux-amd64.tar.gz; DIGEST=84829fb2f2c42ed895f4b8f09adca4c046a00f80fc07e7da4bea182971dc84b8 ;;
+    Linux-aarch64)       ASSET=lunet-linux-arm64.tar.gz; DIGEST=ccbfae1890df998573b281b7742251251f025125fb89102e2a25ca7c0cf0bf59 ;;
     *) echo "build.sh: unsupported platform $(uname -s)-$(uname -m)" >&2; exit 1 ;;
 esac
 
