@@ -20,18 +20,18 @@ function jwt.decode(token, secret)
     end
 
     local message = header_b64 .. "." .. payload_b64
-    local expected_signature_b64 = crypto.base64_encode(crypto.hmac_sha256(message, secret), true)
+    local expected_signature_b64 = crypto.base64_encode(crypto.hmac_sha256(message, secret))
     if not crypto.constant_time_compare(signature_b64, expected_signature_b64) then
         return nil, "Invalid signature"
     end
 
-    local header_json = crypto.base64_decode(header_b64, true)
+    local header_json = crypto.base64_decode(header_b64)
     local header_ok, header = pcall(json.decode, header_json)
     if not header_ok or type(header) ~= "table" or header.alg ~= "HS256" then
         return nil, "Invalid header"
     end
 
-    local payload_json = crypto.base64_decode(payload_b64, true)
+    local payload_json = crypto.base64_decode(payload_b64)
     local payload_ok, payload = pcall(json.decode, payload_json)
     if not payload_ok or type(payload) ~= "table" then
         return nil, "Invalid payload"

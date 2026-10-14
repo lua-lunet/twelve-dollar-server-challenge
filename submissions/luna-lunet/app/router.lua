@@ -12,12 +12,12 @@ local router = {}
 local routes = {}
 
 -- Add a route to the router
--- @param method: HTTP method (GET, POST, etc.)
+-- @param method: uppercase HTTP method (GET, POST, ...)
 -- @param path: URL path pattern (e.g., "/posts/:id")
 -- @param handler: function(request, params) returning status, body
 function router.route(method, path, handler)
     table.insert(routes, {
-        method = method:upper(),
+        method = method,
         pattern = path,
         handler = handler
     })

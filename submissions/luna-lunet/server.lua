@@ -20,8 +20,6 @@ local function handle_request(request)
 end
 
 local function handle_client(client)
-    -- lib/http.lua reads the supported HTTP/1.1 subset incrementally, then
-    -- this server sends one Connection: close response and closes the socket.
     local request, parse_err, parse_status = http.read_request(function()
         return socket.read(client)
     end)

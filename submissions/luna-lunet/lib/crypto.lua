@@ -54,11 +54,10 @@ function crypto.constant_time_compare(a, b)
     return sodium.sodium_memcmp(a, b, #a) == 0
 end
 
-local b64_chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/"
 local b64url_chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_"
 
-function crypto.base64_encode(data, url_safe)
-    local chars = url_safe and b64url_chars or b64_chars
+-- The JWT profiles used here are base64url without padding.
+function crypto.base64_encode(data)
     local result = {}
     local pad = #data % 3
     data = data .. string.rep("\0", (3 - pad) % 3)
@@ -66,28 +65,26 @@ function crypto.base64_encode(data, url_safe)
     for i = 1, #data, 3 do
         local b1, b2, b3 = data:byte(i, i + 2)
         local n = b1 * 65536 + b2 * 256 + b3
-        result[#result + 1] = chars:sub(math.floor(n / 262144) % 64 + 1, math.floor(n / 262144) % 64 + 1)
-        result[#result + 1] = chars:sub(math.floor(n / 4096) % 64 + 1, math.floor(n / 4096) % 64 + 1)
-        result[#result + 1] = chars:sub(math.floor(n / 64) % 64 + 1, math.floor(n / 64) % 64 + 1)
-        result[#result + 1] = chars:sub(n % 64 + 1, n % 64 + 1)
+        result[#result + 1] = b64url_chars:sub(math.floor(n / 262144) % 64 + 1, math.floor(n / 262144) % 64 + 1)
+        result[#result + 1] = b64url_chars:sub(math.floor(n / 4096) % 64 + 1, math.floor(n / 4096) % 64 + 1)
+        result[#result + 1] = b64url_chars:sub(math.floor(n / 64) % 64 + 1, math.floor(n / 64) % 64 + 1)
+        result[#result + 1] = b64url_chars:sub(n % 64 + 1, n % 64 + 1)
     end
 
     local encoded = table.concat(result)
     if pad == 1 then
-        encoded = encoded:sub(1, -3) .. (url_safe and "" or "==")
+        encoded = encoded:sub(1, -3)
     elseif pad == 2 then
-        encoded = encoded:sub(1, -2) .. (url_safe and "" or "=")
+        encoded = encoded:sub(1, -2)
     end
     return encoded
 end
 
-function crypto.base64_decode(data, url_safe)
-    local chars = url_safe and b64url_chars or b64_chars
+function crypto.base64_decode(data)
     local decode_map = {}
     for i = 1, 64 do
-        decode_map[chars:sub(i, i)] = i - 1
+        decode_map[b64url_chars:sub(i, i)] = i - 1
     end
-    decode_map["="] = 0
 
     data = data:gsub("=", "")
     local pad = #data % 4

@@ -72,10 +72,10 @@ local function parse_request_head(head)
         content_length = length
     end
 
-    local query_string = ""
+    -- A query string is allowed but nothing here consumes it: split it off so
+    -- it never reaches the router.
     local query_start = path:find("?", 1, true)
     if query_start then
-        query_string = path:sub(query_start + 1)
         path = path:sub(1, query_start - 1)
     end
 
@@ -85,62 +85,11 @@ local function parse_request_head(head)
         version = version,
         headers = headers,
         content_length = content_length,
-        query_params = http.parse_query_string(query_string),
-        query_string = query_string,
     }
 end
 
-local function parse_complete_request(raw)
-    local request, parse_err, parse_status = http.parse_request(raw)
-    if request then request.raw = raw end
-    return request, parse_err, parse_status
-end
-
--- Parse query string into table
-function http.parse_query_string(query)
-    if not query or query == "" then return {} end
-    local params = {}
-    for k, v in query:gmatch("([^&=]+)=([^&=]*)") do
-        params[http.url_decode(k)] = http.url_decode(v)
-    end
-    return params
-end
-
--- URL decode
-function http.url_decode(str)
-    return str:gsub("%%(%x%x)", function(hex)
-        return string.char(tonumber(hex, 16))
-    end)
-end
-
--- Parse HTTP request
-function http.parse_request(raw)
-    if type(raw) ~= "string" then return request_error("Invalid HTTP request") end
-
-    -- Find end of headers (blank line = double CRLF)
-    local header_end = raw:find("\r\n\r\n", 1, true)
-    if not header_end then
-        if #raw > http.MAX_HEADER_BYTES then
-            return request_error("Request headers too large", 431)
-        end
-        return request_error("Incomplete headers")
-    end
-    if header_end + 3 > http.MAX_HEADER_BYTES then
-        return request_error("Request headers too large", 431)
-    end
-
-    local head = raw:sub(1, header_end - 1)
-    local body = raw:sub(header_end + 4)
-
-    local request, parse_err, parse_status = parse_request_head(head)
-    if not request then return nil, parse_err, parse_status end
-    if #body < request.content_length then
-        return request_error("Incomplete request body")
-    end
-    if #body > request.content_length then
-        return request_error("Unexpected data after request body")
-    end
-
+-- Finalize a fully received request: attach the body, drop the framing field.
+local function finalize(request, body)
     request.body = body
     request.content_length = nil
     return request
@@ -196,8 +145,7 @@ function http.read_request(read_chunk)
                     return request_error("Unexpected data after request body")
                 end
                 if body_size == expected_body_size then
-                    local raw = received:sub(1, header_end + 3) .. table.concat(body_chunks)
-                    return parse_complete_request(raw)
+                    return finalize(request, table.concat(body_chunks))
                 end
             end
         else
@@ -211,8 +159,7 @@ function http.read_request(read_chunk)
                 return request_error("Unexpected data after request body")
             end
             if body_size == expected_body_size then
-                local raw = request_head .. "\r\n\r\n" .. table.concat(body_chunks)
-                return parse_complete_request(raw)
+                return finalize(request, table.concat(body_chunks))
             end
         end
     end
@@ -223,16 +170,13 @@ function http.response(status, headers, body)
     local status_text = {
         [200] = "OK",
         [201] = "Created",
-        [204] = "No Content",
         [400] = "Bad Request",
         [401] = "Unauthorized",
-        [403] = "Forbidden",
         [404] = "Not Found",
-        [405] = "Method Not Allowed",
         [413] = "Payload Too Large",
-        [422] = "Unprocessable Entity",
         [431] = "Request Header Fields Too Large",
         [500] = "Internal Server Error",
+        [503] = "Service Unavailable",
         [505] = "HTTP Version Not Supported",
     }
     
@@ -267,11 +211,6 @@ function http.json_response(status, data)
     local json = require("lunet.jsonic")
     local body = json.encode(data)
     return http.response(status, { ["Content-Type"] = "application/json" }, body)
-end
-
--- Error response helper
-function http.error_response(status, data)
-    return http.json_response(status, { errors = data })
 end
 
 return http
