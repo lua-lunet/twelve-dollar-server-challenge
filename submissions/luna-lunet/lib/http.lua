@@ -2,11 +2,13 @@
 
 local http = {}
 
--- This demo deliberately supports a small, explicit HTTP/1.1 framing subset:
--- one origin-form request per connection, CRLF headers, at most one value for
--- each header field, and an optional decimal Content-Length body. Chunked and
--- every other Transfer-Encoding are rejected. Responses always close the
--- connection, so request pipelining and persistent connections are excluded.
+-- This demo supports a small, explicit HTTP/1.1 framing subset: origin-form
+-- requests, CRLF headers, at most one value for each header field, and an
+-- optional decimal Content-Length body. Chunked and every other
+-- Transfer-Encoding are rejected. Responses are persistent by default
+-- (HTTP/1.1 keeps the connection open); pass persistent=false for a
+-- Connection: close response. Pipelining is excluded: a chunk that runs past
+-- the end of a request body is a hard 400.
 http.MAX_HEADER_BYTES = 16 * 1024
 http.MAX_BODY_BYTES = 1024 * 1024
 
@@ -165,8 +167,9 @@ function http.read_request(read_chunk)
     end
 end
 
--- Build HTTP response
-function http.response(status, headers, body)
+-- Build HTTP response. persistent=false emits Connection: close; a default
+-- (nil/true) response leaves the connection persistent per HTTP/1.1.
+function http.response(status, headers, body, persistent)
     local status_text = {
         [200] = "OK",
         [201] = "Created",
@@ -192,7 +195,9 @@ function http.response(status, headers, body)
         end
     end
     normalized_headers["content-type"] = normalized_headers["content-type"] or "application/json"
-    normalized_headers["connection"] = "close"
+    if not persistent then
+        normalized_headers["connection"] = "close"
+    end
     
     -- Build header lines
     local header_lines = {status_line}
@@ -207,10 +212,10 @@ function http.response(status, headers, body)
 end
 
 -- JSON response helper
-function http.json_response(status, data)
+function http.json_response(status, data, persistent)
     local json = require("lunet.jsonic")
     local body = json.encode(data)
-    return http.response(status, { ["Content-Type"] = "application/json" }, body)
+    return http.response(status, { ["Content-Type"] = "application/json" }, body, persistent)
 end
 
 return http

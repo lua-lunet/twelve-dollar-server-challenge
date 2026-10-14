@@ -14,33 +14,35 @@ local db = require("db")
 local router = require("router")
 require("routes")
 
-local function handle_request(request)
+local function handle_request(request, persistent)
     local status, body = router.handle(request)
-    return http.response(status, nil, body)
+    return http.response(status, nil, body, persistent)
 end
 
 local function handle_client(client)
-    local request, parse_err, parse_status = http.read_request(function()
-        return socket.read(client)
-    end)
-    if not request and not parse_err then
-        socket.close(client)
-        return
-    end
-    if not request then
-        socket.write(client, http.json_response(parse_status or 400, { error = parse_err }))
-        socket.close(client)
-        return
-    end
+    while true do
+        local request, parse_err, parse_status = http.read_request(function()
+            return socket.read(client)
+        end)
+        if not request and not parse_status then
+            -- EOF before any bytes: a closed or idle client owns the close
+            socket.close(client)
+            return
+        end
+        if not request then
+            socket.write(client, http.json_response(parse_status or 400, { error = parse_err }))
+            socket.close(client)
+            return
+        end
 
-    local ok, response = pcall(handle_request, request)
-    if not ok then
-        io.stderr:write("Request error: ", tostring(response), "\n")
-        response = http.json_response(500, { error = "internal server error" })
-    end
+        local ok, response = pcall(handle_request, request, true)
+        if not ok then
+            io.stderr:write("Request error: ", tostring(response), "\n")
+            response = http.json_response(500, { error = "internal server error" }, true)
+        end
 
-    socket.write(client, response)
-    socket.close(client)
+        socket.write(client, response)
+    end
 end
 
 lunet.spawn(function()
