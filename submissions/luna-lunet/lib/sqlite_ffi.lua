@@ -114,14 +114,49 @@ function ffi_db.query(stmt, ...)
     end
     local rows = {}
     local r = 0
+    local types = stmt.types
     while true do
         local rc = sqlite.sqlite3_step(st)
         if rc == SQLITE_ROW then
             r = r + 1
             local row = {}
             rows[r] = row
+            local rtypes = types
+            if rtypes == nil and not stmt.noshape then
+                if stmt.cand == nil then
+                    local cand = {}
+                    local nullable = false
+                    for i = 0, ncols - 1 do
+                        local t = sqlite.sqlite3_column_type(st, i)
+                        cand[i] = t
+                        if t == SQLITE_NULL then
+                            nullable = true
+                        end
+                    end
+                    if nullable then
+                        stmt.noshape = true
+                    else
+                        stmt.cand = cand
+                    end
+                else
+                    local settled = true
+                    for i = 0, ncols - 1 do
+                        if sqlite.sqlite3_column_type(st, i) ~= stmt.cand[i] then
+                            settled = false
+                        end
+                    end
+                    if settled then
+                        types = stmt.cand
+                        stmt.types = types
+                        rtypes = types
+                    else
+                        stmt.noshape = true
+                    end
+                    stmt.cand = nil
+                end
+            end
             for i = 0, ncols - 1 do
-                local ctype = sqlite.sqlite3_column_type(st, i)
+                local ctype = rtypes and rtypes[i] or sqlite.sqlite3_column_type(st, i)
                 if ctype == SQLITE_INTEGER then
                     row[names[i]] = tonumber(sqlite.sqlite3_column_int64(st, i))
                 elseif ctype == SQLITE_TEXT then

@@ -35,11 +35,7 @@ local function handle_client(client)
             return
         end
 
-        local ok, response = pcall(handle_request, request, true)
-        if not ok then
-            io.stderr:write("Request error: ", tostring(response), "\n")
-            response = http.json_response(500, { error = "internal server error" }, true)
-        end
+        local response = handle_request(request, true)
 
         socket.write(client, response)
     end
