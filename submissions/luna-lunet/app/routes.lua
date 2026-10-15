@@ -4,7 +4,10 @@ local jwt = require("jwt")
 local json = require("lunet.jsonic")
 local router = require("router")
 
-local POST_ORDER = { "id", "body", "created_at", "author", "like_count" }
+-- Fixed-shape JSON encode: the response shapes are known, so the byte strings are
+-- assembled with static prefixes and one escaper instead of walking tables. The
+-- escaper is jsonic's own quotestring (vendored dkjson 2.10), so escaping matches
+-- the old encode byte for byte; numbers and booleans are integers/literals here.
 
 local POST_SELECT = [[
 SELECT p.id, p.body, p.created_at, u.username,
@@ -14,18 +17,31 @@ SELECT p.id, p.body, p.created_at, u.username,
 
 local STARTED_AT = os.time()
 
-local function error_body(message)
-    return json.encode({ error = message })
+local function jstr(value)
+    if type(value) ~= "string" then
+        return json.encode(value)
+    end
+    return json.quotestring(value)
 end
 
-local function post_object(row)
-    return {
-        id = row.id,
-        body = row.body,
-        created_at = row.created_at,
-        author = row.username,
-        like_count = row.like_count,
-    }
+local function jint(value)
+    return tostring(value)
+end
+
+local function post_json(id, body, created_at, author, like_count)
+    return '{"id":' .. jint(id)
+        .. ',"body":' .. jstr(body)
+        .. ',"created_at":' .. jstr(created_at)
+        .. ',"author":' .. jstr(author)
+        .. ',"like_count":' .. jint(like_count) .. "}"
+end
+
+local function post_object_json(row)
+    return post_json(row.id, row.body, row.created_at, row.username, row.like_count)
+end
+
+local function error_body(message)
+    return '{"error":' .. jstr(message) .. "}"
 end
 
 local function parse_post_id(raw)
@@ -68,20 +84,18 @@ local function health()
     -- A failed ping is the degraded response, not an internal error
     local ok, err = pcall(db.query, "SELECT 1")
     if not ok then
-        return 503, json.encode({ status = "degraded", db = "unreachable", error = err },
-            { keyorder = { "status", "db", "error" } })
+        return 503, '{"status":"degraded","db":"unreachable","error":' .. jstr(err) .. "}"
     end
-    return 200, json.encode({ status = "ok", db = "ok", uptime_s = os.time() - STARTED_AT },
-        { keyorder = { "status", "db", "uptime_s" } })
+    return 200, '{"status":"ok","db":"ok","uptime_s":' .. jint(os.time() - STARTED_AT) .. "}"
 end
 
 local function feed()
     local rows = db.query(POST_SELECT .. " ORDER BY p.created_at DESC, p.id DESC LIMIT 20")
-    local posts = {}
+    local parts = {}
     for i, row in ipairs(rows) do
-        posts[i] = post_object(row)
+        parts[i] = post_object_json(row)
     end
-    return 200, json.encode({ posts = posts }, { keyorder = POST_ORDER })
+    return 200, '{"posts":[' .. table.concat(parts, ",") .. "]}"
 end
 
 local function show_post(request, params)
@@ -95,7 +109,7 @@ local function show_post(request, params)
         return 404, error_body("post not found")
     end
 
-    return 200, json.encode({ post = post_object(rows[1]) }, { keyorder = POST_ORDER })
+    return 200, '{"post":' .. post_object_json(rows[1]) .. "}"
 end
 
 local function create_post(request)
@@ -123,14 +137,7 @@ local function create_post(request)
     end
 
     local rows = db.query("INSERT INTO posts (user_id, body) VALUES (?, ?) RETURNING id, created_at", user.id, body)
-    local post = {
-        id = rows[1].id,
-        body = body,
-        created_at = rows[1].created_at,
-        author = user.username,
-        like_count = 0,
-    }
-    return 201, json.encode({ post = post }, { keyorder = POST_ORDER })
+    return 201, '{"post":' .. post_json(rows[1].id, body, rows[1].created_at, user.username, 0) .. "}"
 end
 
 local function like_post(request, params)
@@ -151,8 +158,8 @@ local function like_post(request, params)
 
     local result = db.exec("INSERT INTO likes (user_id, post_id) VALUES (?, ?) ON CONFLICT (user_id, post_id) DO NOTHING", user.id, id)
     local already_liked = result.affected_rows == 0
-    return already_liked and 200 or 201, json.encode({ liked = true, already_liked = already_liked, post_id = id },
-        { keyorder = { "liked", "already_liked", "post_id" } })
+    return already_liked and 200 or 201,
+        '{"liked":true,"already_liked":' .. tostring(already_liked) .. ',"post_id":' .. jint(id) .. "}"
 end
 
 router.route("GET", "/health", health)
