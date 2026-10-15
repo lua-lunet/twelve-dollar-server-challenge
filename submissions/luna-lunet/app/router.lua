@@ -16,23 +16,23 @@ local routes = {}
 -- @param path: URL path pattern (e.g., "/posts/:id")
 -- @param handler: function(request, params) returning status, body
 function router.route(method, path, handler)
+    local pattern_parts = {}
+    for part in path:gmatch("[^/]+") do
+        table.insert(pattern_parts, part)
+    end
     table.insert(routes, {
         method = method,
         pattern = path,
+        pattern_parts = pattern_parts,
         handler = handler
     })
 end
 
--- Match a path against a pattern and extract parameters
--- @param pattern: route pattern (e.g., "/posts/:id/like")
+-- Match a pre-split pattern against a path and extract parameters
+-- @param pattern_parts: route pattern split on "/" (e.g., {"posts", ":id", "like"})
 -- @param path: request path (e.g., "/posts/123/like")
 -- @return params: table of parameters, or nil if no match
-local function match_pattern(pattern, path)
-    local pattern_parts = {}
-    for part in pattern:gmatch("[^/]+") do
-        table.insert(pattern_parts, part)
-    end
-
+local function match_pattern(pattern_parts, path)
     local path_parts = {}
     for part in path:gmatch("[^/]+") do
         table.insert(path_parts, part)
@@ -57,7 +57,7 @@ end
 local function match(method, path)
     for _, route in ipairs(routes) do
         if route.method == method:upper() then
-            local params = match_pattern(route.pattern, path)
+            local params = match_pattern(route.pattern_parts, path)
             if params then
                 return route, params
             end

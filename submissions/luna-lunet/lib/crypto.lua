@@ -56,6 +56,11 @@ end
 
 local b64url_chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_"
 
+local decode_map = {}
+for i = 1, 64 do
+    decode_map[b64url_chars:sub(i, i)] = i - 1
+end
+
 -- The JWT profiles used here are base64url without padding.
 function crypto.base64_encode(data)
     local result = {}
@@ -81,11 +86,6 @@ function crypto.base64_encode(data)
 end
 
 function crypto.base64_decode(data)
-    local decode_map = {}
-    for i = 1, 64 do
-        decode_map[b64url_chars:sub(i, i)] = i - 1
-    end
-
     data = data:gsub("=", "")
     local pad = #data % 4
     if pad == 1 then
