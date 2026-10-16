@@ -48,5 +48,6 @@ curl plus apt packages only (`ca-certificates`, `libluajit-5.1-2`, `libuv1`, `zl
 - **No cross-request caching.** Every request runs its SQL against SQLite. Every JWT is verified
   fresh per request: signature recomputed and compared in constant time (libsodium via FFI), header
   and payload decoded and checked, `exp` checked.
-- **Bytes-exact JSON.** Ordered keys via dkjson's keyorder so response bytes match the spec
-  exactly, with no string templating or hard-coded response fragments.
+- **Bytes-exact JSON.** Responses are rendered directly in the byte shapes the spec mandates
+  (five fixed shapes assembled with one escaper sourced from jsonic's vendored dkjson), so the
+  key order and bytes match by construction rather than by reordering a generic encode.
