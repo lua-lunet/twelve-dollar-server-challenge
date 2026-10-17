@@ -1,7 +1,9 @@
--- Cryptography utilities using libsodium via FFI: HMAC-SHA256, base64url and
--- constant-time comparison. Nothing here hashes or generates secrets.
+-- Cryptography utilities: HMAC-SHA256 and constant-time comparison via
+-- libsodium FFI; base64url via lunet.sodium (the linked library). Nothing
+-- here hashes or generates secrets.
 
 local ffi = require("ffi")
+local sodium_mod = require("lunet.sodium")
 local crypto = {}
 
 ffi.cdef[[
@@ -54,62 +56,18 @@ function crypto.constant_time_compare(a, b)
     return sodium.sodium_memcmp(a, b, #a) == 0
 end
 
-local b64url_chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_"
+-- Unpadded base64url, the JWT profile, via the linked library. The library
+-- raises its diagnostic on malformed input; decode reports failure as nil so
+-- callers keep deciding the response status.
 
-local decode_map = {}
-for i = 1, 64 do
-    decode_map[b64url_chars:sub(i, i)] = i - 1
-end
-
--- The JWT profiles used here are base64url without padding.
 function crypto.base64_encode(data)
-    local result = {}
-    local pad = #data % 3
-    data = data .. string.rep("\0", (3 - pad) % 3)
-
-    for i = 1, #data, 3 do
-        local b1, b2, b3 = data:byte(i, i + 2)
-        local n = b1 * 65536 + b2 * 256 + b3
-        result[#result + 1] = b64url_chars:sub(math.floor(n / 262144) % 64 + 1, math.floor(n / 262144) % 64 + 1)
-        result[#result + 1] = b64url_chars:sub(math.floor(n / 4096) % 64 + 1, math.floor(n / 4096) % 64 + 1)
-        result[#result + 1] = b64url_chars:sub(math.floor(n / 64) % 64 + 1, math.floor(n / 64) % 64 + 1)
-        result[#result + 1] = b64url_chars:sub(n % 64 + 1, n % 64 + 1)
-    end
-
-    local encoded = table.concat(result)
-    if pad == 1 then
-        encoded = encoded:sub(1, -3)
-    elseif pad == 2 then
-        encoded = encoded:sub(1, -2)
-    end
-    return encoded
+    return sodium_mod.base64_encode(data, sodium_mod.BASE64_VARIANT_URLSAFE_NO_PADDING)
 end
 
 function crypto.base64_decode(data)
-    data = data:gsub("=", "")
-    local pad = #data % 4
-    if pad == 1 then
-        return nil, "invalid base64 length"
-    end
-    data = data .. string.rep("A", (4 - pad) % 4)
-
-    local result = {}
-    for i = 1, #data, 4 do
-        local c1 = decode_map[data:sub(i, i)] or 0
-        local c2 = decode_map[data:sub(i + 1, i + 1)] or 0
-        local c3 = decode_map[data:sub(i + 2, i + 2)] or 0
-        local c4 = decode_map[data:sub(i + 3, i + 3)] or 0
-        local n = c1 * 262144 + c2 * 4096 + c3 * 64 + c4
-        result[#result + 1] = string.char(math.floor(n / 65536) % 256)
-        result[#result + 1] = string.char(math.floor(n / 256) % 256)
-        result[#result + 1] = string.char(n % 256)
-    end
-
-    local decoded = table.concat(result)
-    if pad == 2 then
-        decoded = decoded:sub(1, -3)
-    elseif pad == 3 then
-        decoded = decoded:sub(1, -2)
+    local ok, decoded = pcall(sodium_mod.base64_decode, data, sodium_mod.BASE64_VARIANT_URLSAFE_NO_PADDING)
+    if not ok then
+        return nil
     end
     return decoded
 end
