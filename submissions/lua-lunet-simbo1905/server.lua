@@ -8,16 +8,21 @@ io.stdout:setvbuf("no")
 local lunet = require("lunet")
 local socket = require("lunet.socket")
 local http = require("http")
+local http_context = require("lunet.http_context")
+local router = require("lunet.http_router")
 
+local json = require("lunet.jsonic")
 local config = require("config")
 local db = require("db")
-local router = require("router")
-require("routes")
 
-local function handle_request(request, persistent)
-    local status, body = router.handle(request)
-    return http.response(status, nil, body, persistent)
-end
+-- Route modules register themselves on require.
+require("auth")
+require("posts")
+require("health")
+
+-- Warm up jsonic's native decoder before the event loop starts: a lazy FFI
+-- load under live worker threads can deadlock (examples/08 guidance).
+json.decode("{}")
 
 local function handle_client(client)
     while true do
@@ -35,9 +40,20 @@ local function handle_client(client)
             return
         end
 
-        local response = handle_request(request, true)
+        local ctx = http_context.new(request)
+        ctx.env_config = config
 
-        socket.write(client, response)
+        -- The SPEC's byte shape for an unmatched path; the router's own
+        -- built-in 404 body is its JSON shape, not the SPEC's.
+        if not router.match(ctx.method, ctx.path) then
+            socket.write(client, http.response(404, nil, '{"error":"not found"}'))
+        else
+            router.handle(ctx)
+            -- lib/http owns framing; responses are persistent by default (the
+            -- SPEC contract: nginx's idle upstream connections survive >= 65 s),
+            -- so the loop keeps serving the socket until the client closes it.
+            socket.write(client, http.response(ctx.status, ctx.res_headers, ctx.response_body()))
+        end
     end
 end
 
