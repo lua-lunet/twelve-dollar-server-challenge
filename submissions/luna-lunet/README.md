@@ -20,7 +20,7 @@ through that path; the k6 baseline (50 VUs) measured p99 under 1 ms with 0% erro
 ## Runtime
 
 lunet is not compiled from source. `build.sh` downloads the pinned release archive
-(`lunet-linux-amd64.tar.gz`, tag `v0.11.0`), verifies its sha256 digest against a hash embedded in the
+(`lunet-linux-amd64.tar.gz`, tag `v0.11.1`), verifies its sha256 digest against a hash embedded in the
 script, stages it into `.lunet/`, and smoke-tests the loader — the same way a Node submission
 installs Node. No xmake, no cargo. Nothing prebuilt is committed.
 
@@ -43,8 +43,9 @@ curl plus apt packages only (`ca-certificates`, `libluajit-5.1-2`, `libuv1`, `zl
 
 ## Design notes
 
-- **SQLite in-process** at `$SQLITE_PATH` via lunet's bundled SQLite driver; opened with WAL and
-  `synchronous=NORMAL` so writes are durable before a 201 is sent. The driver's `open` returns a
+- **SQLite in-process** at `$SQLITE_PATH` via lunet's bundled SQLite driver; the provisioned file is
+  already WAL, and `synchronous=NORMAL` is passed through the driver's open contract so writes are
+  durable before a 201 is sent. The driver's `open` returns a
   pair: writes (and the insert) run on the read-write handle through the worker pool; reads run on
   the read-only handle inline on the loop thread — uncontended against the single writer in WAL
   (`SELECT`s on the read-only handle fail loudly with `SQLITE_READONLY` if a write is ever
