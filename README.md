@@ -36,6 +36,8 @@ k6 run -e VUS=1000 bench/load.js                # optional: load test your serve
    server, or external service (no Postgres, Redis, Memcached).
 3. The schema and data are fixed. Don't add or change tables, columns, indexes or triggers. Any SQL
    you like against the schema as given.
+
+**Correctness**
 4. Pass `test/test.sh` 100%, with the exact bytes it expects.
 5. **No caching across requests.** Every request reads its data from SQLite while it is being served:
    no response caches, query-result caches, in-memory copies of tables, or remembered JWT verifications
@@ -46,6 +48,8 @@ k6 run -e VUS=1000 bench/load.js                # optional: load test your serve
    Batching several requests' writes into one transaction (group commit) is allowed if each response waits for
    its commit.
 7. No hard-coded responses, no detecting the load test, nothing that only works because it's a benchmark.
+
+**VM Specs and Info**
 8. It runs on Ubuntu 24.04 x86_64 on a DigitalOcean Basic droplet: 1 vCPU, 2 GB RAM, no swap. You share
    the CPU and RAM with the OS (and Nginx, if you use it). If you run out of memory, you lose.
 9. **Nginx is optional.** Either run behind our Nginx ([`bench/nginx.conf`](bench/nginx.conf), as in the video)

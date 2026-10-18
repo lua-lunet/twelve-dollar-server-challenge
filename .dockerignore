@@ -1,7 +1,0 @@
-# The image needs only the Lua application source and the build scripts;
-# local build output (the arm64 staging) and scratchdb state must never ride
-# the context.
-submissions/luna-lunet/.lunet
-submissions/luna-lunet/target
-.tmp
-.github
