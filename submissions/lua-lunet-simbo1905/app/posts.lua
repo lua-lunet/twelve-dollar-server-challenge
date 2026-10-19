@@ -129,7 +129,9 @@ local function like_post(_, ctx, params)
         return
     end
 
-    local result = db.exec("INSERT INTO likes (user_id, post_id) VALUES (?, ?) ON CONFLICT (user_id, post_id) DO NOTHING", user.id, id)
+    local result = db.exec(
+        "INSERT INTO likes (user_id, post_id) VALUES (?, ?) ON CONFLICT (user_id, post_id) DO NOTHING",
+        user.id, id)
     local already_liked = result.affected_rows == 0
     ctx.status = already_liked and 200 or 201
     ctx.write('{"liked":true,"already_liked":' .. tostring(already_liked) .. ',"post_id":' .. jint(id) .. "}")

@@ -3,10 +3,11 @@
 The Feed API in plain Lua on [lunet](https://github.com/lua-lunet/lunet), a libuv + LuaJIT coroutine
 runtime. The source is application logic only, in the
 [realworld-lua app style](https://github.com/lua-lunet/realworld-lua/tree/main/app): `server.lua`
-plus `app/` (posts, auth, health, render, config, SQLite access). Routing and JWT ride on the
-runtime's own extensions — `lunet.http_router`, `lunet.http_context` and `lunet.security` — and
-`lib/http.lua` carries the HTTP/1.1 framing with responses persistent by default (the caller owns
-the connection lifetime; `persistent=false` opts out).
+plus `app/` (posts, auth, health, render, config, SQLite access). Routing, JWT and HTTP/1.1 framing
+all ride on the runtime's own extensions — `lunet.http_router`, `lunet.http_context`,
+`lunet.security` and `lunet.http` (persist-by-default keep-alive, request-declared close honored;
+[upstream #204](https://github.com/lua-lunet/lunet/issues/204)) — there is no framing shim in this
+tree.
 
 ## Run behind nginx
 
@@ -28,7 +29,7 @@ k6 baseline (50 VUs) measured p99 under 1 ms with 0% errors against this path.
 ## Runtime
 
 lunet is not compiled from source. `build.sh` downloads the pinned release archive
-(`lunet-linux-amd64.tar.gz`, tag `v0.11.1`), verifies its sha256 digest against a hash embedded in the
+(`lunet-linux-amd64.tar.gz`, tag `v0.14.1`), verifies its sha256 digest against a hash embedded in the
 script, stages it into `.lunet/`, and smoke-tests the loader — the same way a Node submission
 installs Node. No xmake, no cargo. Nothing prebuilt is committed.
 
@@ -76,5 +77,5 @@ the droplet) — holding 2,500 VUs for the full 5 minutes with `bench/load.js`, 
 generator itself sharing the same 1 vCPU (strictly harder than the scored setup, where k6 runs from
 a separate machine):
 
-- **checks 100.00% — 93,450 requests, 0 failed** (feed 200, post 200, like 200/201, create 201);
-  **p95 0.46 ms, p99 1.3 ms**; server peak RSS 8.2 MB for the whole hold.
+- **checks 100.00% — 93,477 requests, 0 failed** (feed 200, post 200, like 200/201, create 201);
+  **p95 0.45 ms, p99 0.79 ms**; server peak RSS 16.9 MB for the whole run (lunet `v0.14.1`).
