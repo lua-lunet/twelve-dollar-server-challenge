@@ -1,8 +1,5 @@
 -- Posts: the feed model and the /feed, /posts routes registered on
 -- lunet.http_router (a route module registers itself when required).
--- Handlers drive the per-request context directly (ctx.status + ctx.write)
--- so the response bytes stay exactly the fixed shapes the byte-exact
--- rendering below builds.
 
 local db = require("db")
 local json = require("lunet.jsonic")
@@ -10,6 +7,8 @@ local auth = require("auth")
 local router = require("lunet.http_router")
 
 -- The single spec error shape.
+---@param message string The error message; jstr-quoted into the fixed shape
+---@return string body The spec error body
 local function error_body(message)
     return '{"error":' .. json.jstr(message) .. "}"
 end
@@ -20,6 +19,13 @@ SELECT p.id, p.body, p.created_at, u.username,
   FROM posts p JOIN users u ON u.id = p.user_id
 ]]
 
+---Render one post object in the spec's byte shape.
+---@param id integer Post id
+---@param body string Post body text (unprocessed)
+---@param created_at string Wire-format timestamp
+---@param author string Author username
+---@param like_count integer Like count
+---@return string json The rendered post object
 local function post_json(id, body, created_at, author, like_count)
     return '{"id":' .. json.jint(id)
         .. ',"body":' .. json.jstr(body)
@@ -28,10 +34,16 @@ local function post_json(id, body, created_at, author, like_count)
         .. ',"like_count":' .. json.jint(like_count) .. "}"
 end
 
+---Render a SELECT row as the spec's post object.
+---@param row table One row of POST_SELECT: id, body, created_at, username, like_count
+---@return string json The rendered post object
 local function post_object_json(row)
     return post_json(row.id, row.body, row.created_at, row.username, row.like_count)
 end
 
+---Parse a route's :id capture.
+---@param raw string The captured id segment
+---@return integer|nil id Positive integer, nil and no reason when invalid
 local function parse_post_id(raw)
     local id = raw:match("^%d+$") and tonumber(raw)
     if not id or id < 1 then
@@ -40,8 +52,11 @@ local function parse_post_id(raw)
     return id
 end
 
+---GET /feed: the 20 newest posts.
+---@param _ any The app config, passed by the router and ignored
+---@param ctx table The request context
 local function feed(_, ctx)
-    local rows = db.query(POST_SELECT .. " ORDER BY p.created_at DESC, p.id DESC LIMIT 20")
+    local rows = db.query_ro(POST_SELECT .. " ORDER BY p.created_at DESC, p.id DESC LIMIT 20")
     local parts = {}
     for i, row in ipairs(rows) do
         parts[i] = post_object_json(row)
@@ -50,6 +65,10 @@ local function feed(_, ctx)
     ctx.write('{"posts":[' .. table.concat(parts, ",") .. "]}")
 end
 
+---GET /posts/:id.
+---@param _ any The app config, passed by the router and ignored
+---@param ctx table The request context
+---@param params table Route captures: params.id
 local function show_post(_, ctx, params)
     local id = parse_post_id(params.id)
     if not id then
@@ -58,7 +77,7 @@ local function show_post(_, ctx, params)
         return
     end
 
-    local rows = db.query(POST_SELECT .. " WHERE p.id = ?", id)
+    local rows = db.query_ro(POST_SELECT .. " WHERE p.id = ?", id)
     if not rows[1] then
         ctx.status = 404
         ctx.write(error_body("post not found"))
@@ -69,6 +88,9 @@ local function show_post(_, ctx, params)
     ctx.write('{"post":' .. post_object_json(rows[1]) .. "}")
 end
 
+---POST /posts (auth).
+---@param _ any The app config, passed by the router and ignored
+---@param ctx table The request context
 local function create_post(_, ctx)
     local user, auth_error = auth.authenticate(ctx)
     if not user then
@@ -108,6 +130,10 @@ local function create_post(_, ctx)
     ctx.write('{"post":' .. post_json(rows[1].id, body, rows[1].created_at, user.username, 0) .. "}")
 end
 
+---POST /posts/:id/like (auth): one like per (user, post).
+---@param _ any The app config, passed by the router and ignored
+---@param ctx table The request context
+---@param params table Route captures: params.id
 local function like_post(_, ctx, params)
     local user, auth_error = auth.authenticate(ctx)
     if not user then
@@ -123,7 +149,7 @@ local function like_post(_, ctx, params)
         return
     end
 
-    local existing = db.query("SELECT 1 FROM posts WHERE id = ?", id)
+    local existing = db.query_ro("SELECT 1 FROM posts WHERE id = ?", id)
     if not existing[1] then
         ctx.status = 404
         ctx.write(error_body("post not found"))
