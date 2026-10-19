@@ -7,12 +7,21 @@ local db = {}
 local conn
 local read_conn
 
----Open the cached rw/ro pair on `path`.
+---Open the cached rw/ro pair on `path`. Options pass through to the
+---driver's open contract; the helper's own default is synchronous=NORMAL
+---(the write path must be durable before a 201 is sent). The pair is
+---cached by the loader on the path, so one open per process; the journal
+---mode is never touched (the provisioned file is already WAL).
 ---@param path string The SQLite database file
+---@param opts table|nil Passthrough options for the driver's open contract
 ---@return boolean|nil ok true on success; nil with a message on failure
 ---@return string|nil err The failure message
-function db.connect(path)
-    local rw, ro, err = sqlite.open({ path = path, synchronous = "NORMAL" })
+function db.connect(path, opts)
+    local open_opts = { path = path, synchronous = "NORMAL" }
+    for k, v in pairs(opts or {}) do
+        open_opts[k] = v
+    end
+    local rw, ro, err = sqlite.open(open_opts)
     if not rw then
         return nil, err
     end
