@@ -6,12 +6,13 @@
 
 local db = require("db")
 local json = require("lunet.jsonic")
-local render = require("render")
 local auth = require("auth")
 local router = require("lunet.http_router")
 
-local jstr, jint = render.jstr, render.jint
-local error_body = render.error_body
+-- The single spec error shape.
+local function error_body(message)
+    return '{"error":' .. json.jstr(message) .. "}"
+end
 
 local POST_SELECT = [[
 SELECT p.id, p.body, p.created_at, u.username,
@@ -20,11 +21,11 @@ SELECT p.id, p.body, p.created_at, u.username,
 ]]
 
 local function post_json(id, body, created_at, author, like_count)
-    return '{"id":' .. jint(id)
-        .. ',"body":' .. jstr(body)
-        .. ',"created_at":' .. jstr(created_at)
-        .. ',"author":' .. jstr(author)
-        .. ',"like_count":' .. jint(like_count) .. "}"
+    return '{"id":' .. json.jint(id)
+        .. ',"body":' .. json.jstr(body)
+        .. ',"created_at":' .. json.jstr(created_at)
+        .. ',"author":' .. json.jstr(author)
+        .. ',"like_count":' .. json.jint(like_count) .. "}"
 end
 
 local function post_object_json(row)
@@ -134,7 +135,7 @@ local function like_post(_, ctx, params)
         user.id, id)
     local already_liked = result.affected_rows == 0
     ctx.status = already_liked and 200 or 201
-    ctx.write('{"liked":true,"already_liked":' .. tostring(already_liked) .. ',"post_id":' .. jint(id) .. "}")
+    ctx.write('{"liked":true,"already_liked":' .. tostring(already_liked) .. ',"post_id":' .. json.jint(id) .. "}")
 end
 
 router.route("GET", "/feed", feed)
