@@ -28,25 +28,26 @@ json.decode("{}")
 ---until the client closes or the request stream breaks.
 ---@param client userdata The accepted socket handle
 local function handle_client(client)
+    local conn = http.new_connection(function()
+        return socket.read(client)
+    end)
     while true do
-        local request, parse_err, parse_status = http.read_request(function()
-            return socket.read(client)
-        end)
+        local request, parse_err, parse_status = conn:next_request()
         if not request and not parse_status then
             -- EOF before any bytes: a closed or idle client owns the close
             socket.close(client)
             return
         end
         if not request then
-            -- Broken framing: the connection state is untrustworthy, close
-            -- after the one response.
+            -- Broken framing desynchronises the stream: the one response
+            -- declares close, then the connection stops being served.
             socket.write(client, http.json_response(parse_status or 400, { error = parse_err }, nil, false))
             socket.close(client)
             return
         end
 
         local declared_close = request.headers["connection"] == "close"
-        local persistent = not declared_close
+        local persistent = not declared_close and request.persistent_connection
 
         local ctx = http_context.new(request)
         ctx.env_config = config
@@ -55,11 +56,14 @@ local function handle_client(client)
         -- built-in 404 body is its JSON shape, not the SPEC's.
         if not router.match(ctx.method, ctx.path) then
             socket.write(client, http.response(404, nil, '{"error":"not found"}', nil, persistent))
-            if declared_close then socket.close(client) return end
         else
             router.handle(ctx)
             socket.write(client, http.response(ctx.status, ctx.res_headers, ctx.response_body(), nil, persistent))
-            if declared_close then socket.close(client) return end
+        end
+        if not persistent then
+            -- The request declared Connection: close, or it was HTTP/1.0
+            socket.close(client)
+            return
         end
     end
 end
