@@ -21,3 +21,25 @@ Source: upstream PR heads (video-mentioned entries off main) + operator picks. D
 
 Running count: 14 good of 15 in tree (zig stands arch-locked FAILED). Both single-attempt fixes landed (go arch swap; c-iouring $COMMON_INC). Disk managed: apt lists+clean freed ~350MB; available ~700MB after go install.
 Disk cascade history: rust toolchain ~4.5GB exhausted the 10GiB disk mid-build-pass; freed cargo target + /opt/rust-stable post-verdict (1.6GB reclaimed).
+
+## HTTP/1.1 probe (rig v1.0.0-M1, generic profile) + soak (60s @ 500 VU, vm stop/start before each)
+
+| server | http/1.1 | probe detail | soak k6 | steady VmRSS | VmHWM |
+|---|:---:|---|---|---|---|
+| lua-lunet-simbo1905 | ✅ 46/46 | all endpoints green | ✅ 4928 reqs, p95 2.4ms p99 3.95ms | 8.7 MB | 8.7 MB |
+| rust-axum-mjc | ✅ 46/46 | all endpoints green (needs rust rebuild for any re-run; toolchain purged post-verdict) | ✅ 4916 reqs, p95 4.01ms p99 5.85ms | 7.6 MB | 7.6 MB |
+| fortran-microhttpd-tbsvttr | ✅ 46/46 | all endpoints green | ✅ 4905 reqs, p95 2.18ms p99 3.87ms | 15.2 MB | 15.2 MB |
+| python-fastapi-cknutson12 | ✅ 46/46 | all endpoints green | ✅ 4920 reqs, p95 2.59ms p99 4.09ms | 55.7 MB | 55.7 MB |
+| bun-elysia-brocchirodrigo | ✅ 46/46 | all endpoints green | ✅ 4933 reqs, p95 3.01ms p99 14.05ms | 51.3 MB (GC dips) | 53.8 MB |
+| go-nethttp-fi5HiE | ✅ 46/46 | all endpoints green | ✅ 4964 reqs, p95 2.63ms p99 4.57ms | 24.9 MB | 24.9 MB |
+| lua-openresty-yar0slav | ✅ 46/46 | all endpoints green | ✅ 4910 reqs, p95 2.45ms p99 4.72ms | 10.3 MB master + 41.9 MB worker = 52.2 MB | 52.2 MB |
+| csharp-aspnetcore-vijay-highlo | ❌ 33/34 | posts.bad-signature → 500 instead of 401 invalid-or-expired-token | — | (48.3 MB idle serve sample) | — |
+| node-uwebsockets-zahidcakici | ❌ 25/30 | http10 rejected with 400 on all 5 endpoints (must serve 2xx+close) | — | — | — |
+| java-nio-stohirov | ❌ 20/25 | te-chunked undecoded → 400 on all 5 | — | — | — |
+| bash-socat-framegrace | ❌ 20/25 | te-chunked undecoded → 400 on all 5 | — | — | — |
+| c-iouring-27bhd | ❌ 20/25 | te-chunked undecoded → 400 {"error":"malformed JSON body"} on all 5 | — | — | — |
+| c-iouring-ssmurfgg04-gif | ❌ 20/25 | te-chunked undecoded → 400 {"error":"bad request"} on all 5 | — | — | — |
+| php-codeigniter-melroy89 | ⏳ 45/46 | EVERYTHING green except feed.ok — RIG's own response parser lacks de-chunking (php's content is correct); true grade 46/46 pending rig fix | — | (105 MB serve sample) | — |
+| zig-iouring-marler8997 | 🚫 | arch-locked: x86-only fiber asm; cannot serve on arm64 | — | — | — |
+
+Soak note: think-time-bound load ≈ 41 rps by design (residency lane, not a ceiling number). All six/eight soak runs: 0 failed requests. Every sampled series plateaus in the late window — no leak signature anywhere.

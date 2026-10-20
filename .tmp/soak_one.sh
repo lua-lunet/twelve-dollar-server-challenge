@@ -17,7 +17,7 @@ set -e
 cd $RROOT
 for P in \$(ps -eo pid,args | grep -vE 'grep|ps -eo' | grep -E 'start\.sh|bin/server|lunet|frankenphp|openresty|uvicorn|bun |node |java .*server|a\.out|socat' | awk '{print \$1}'); do kill -9 \$P 2>/dev/null; done
 sleep 1
-rm -f seed/feed-soak-$N.db*
+rm -f seed/feed-soak-$N.db* $RROOT/soak-pid-$N.txt $RROOT/soak_mem_$N.log
 cp seed/feed.db seed/feed-soak-$N.db
 cp seed/tokens.json seed/tokens-soak-$N.json 2>/dev/null || true
 cd submissions/$N
@@ -26,11 +26,11 @@ sleep 5
 C=\$(curl -s -o /dev/null -w '%{http_code}' --max-time 2 http://127.0.0.1:$PORT/health || echo 000)
 echo VM_HEALTH=\$C
 if [ \"\$C\" != '200' ]; then cat soak_serve_$N.log; exit 1; fi
-PID=\$(ps -eo pid,args | grep -vE 'grep|ps -eo' | grep -E 'bin/server|lunet|frankenphp|uvicorn|python|bun |node |java|a\.out' | awk '{print \$1}' | sort -n | tail -1)
-echo \$PID > /tmp/soak-pid-$N.txt
-echo VM_PID=\$PID
+PSRC=\$(ps -eo pid,args | grep -vE 'grep|ps -eo' | grep "submissions/$N" | grep -vE 'soak_serve|start\.sh' | awk '{print \$1}' | head -3 | tr '\n' ',' | sed 's/,$//')
+echo \$PSRC > $RROOT/soak-pid-$N.txt
+echo VM_PIDS=\$PSRC
 # detached fixed-timer sampler: ~2m of 5s samples written inside the VM
-(setsid bash -c 'for i in \$(seq 1 24); do ts=\$(date +%s); r=\$(grep -E \"VmRSS|VmHWM|Threads\" /proc/'"\$PID"'/status 2>/dev/null | tr \"\\n\" \" \"); f=\$(ls /proc/'"\$PID"'/fd 2>/dev/null | wc -l); echo \"\$ts \$r fds=\$f\" >> $RROOT/soak_mem_$N.log; sleep 5; done' < /dev/null > /dev/null 2>&1) &
+(setsid bash \$HOME/evaluations/soak_sampler.sh $RROOT/soak-pid-$N.txt $RROOT/soak_mem_$N.log 24 5 < /dev/null > /dev/null 2>&1) &
 echo SAMPLER_ON
 " > "$OUT/prelude_$N.log" 2>&1 || { echo "PRELUDE-FAILED $N"; cat "$OUT/prelude_$N.log"; exit 1; }
 grep -E "VM_HEALTH=|VM_PID=|SAMPLER_ON" "$OUT/prelude_$N.log" || cat "$OUT/prelude_$N.log"
