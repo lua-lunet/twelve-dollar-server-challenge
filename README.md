@@ -106,3 +106,7 @@ separate machine. Every implementation in the video ran behind Nginx.
 
 **After your pull request is merged**, it waits for the next benchmark batch. I run merged submissions in batches,
 not one at a time, on no fixed schedule, and share the results once a batch is done.
+
+## Results
+
+**[Leaderboard](LEADERBOARD.md)**: every submission on the same 1 vCPU / 2 GB box, updated as new PRs are benchmarked.
