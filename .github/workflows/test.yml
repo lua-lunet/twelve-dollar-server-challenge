@@ -10,6 +10,7 @@ permissions:
 
 jobs:
   find:
+    timeout-minutes: 15
     runs-on: ubuntu-24.04
     outputs:
       dirs: ${{ steps.dirs.outputs.dirs }}
@@ -32,6 +33,7 @@ jobs:
           echo "testing: $dirs"
 
   test:
+    timeout-minutes: 20
     needs: find
     if: needs.find.outputs.dirs != '[]'
     runs-on: ubuntu-24.04
